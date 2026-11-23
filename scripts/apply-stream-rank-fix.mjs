@@ -6,7 +6,7 @@ let source = fs.readFileSync(file, "utf8")
 const replacements = [
   [
     "stremio:catalog:v6:",
-    "stremio:catalog:v7:",
+    "stremio:catalog:v8:",
   ],
   [
     "concurrentMap(windowRows, async (row): Promise<StremioMeta | null>",
@@ -28,6 +28,25 @@ const replacements = [
     "const posterAndShape = await buildPosterRowUrls(posterCtx, stType, item.tmdbId)\n              const [imdbId, details, logo]",
     "const posterAndShape = await buildPosterRowUrls(posterCtx, stType, item.tmdbId, null, item.rank)\n              const [imdbId, details, logo]",
   ],
+  [
+    'import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"',
+    'import { addonRankingRemainingMs, addonRankingSourceKey, fetchAddonRanking } from "@/lib/addon-ranking"\nimport { RANK_MAX } from "@/lib/poster-params-hardening"',
+  ],
+  [
+    "const enriched = await concurrentMap(remoteItems, async (raw) => {",
+    `// Only the AniList trending chart has ranking semantics here.
+        const isAniListTrending = stType === "series" && addon.catalogId === "anilist.trending"
+        const enriched = await concurrentMap(remoteItems, async (raw, index) => {`,
+  ],
+  [
+    "if (!tmdbId) return base\n            const posterAndShape = await buildPosterRowUrls(posterCtx, stType, tmdbId)",
+    `if (!tmdbId) return base
+            const position = (addonQuery.skip ?? 0) + index + 1
+            const posterRank = isAniListTrending
+              ? (!addonQuery.genre && !addonQuery.search && position <= RANK_MAX ? position : 0)
+              : null
+            const posterAndShape = await buildPosterRowUrls(posterCtx, stType, tmdbId, null, posterRank)`,
+  ],
 ]
 for (const [before, after] of replacements) {
   const count = source.split(before).length - 1
@@ -37,4 +56,4 @@ for (const [before, after] of replacements) {
   source = source.replace(before, after)
 }
 fs.writeFileSync(file, source)
-console.log("Applied persistent streaming chart rank patch")
+console.log("Applied streaming and AniList catalog ranks")
